@@ -1,0 +1,149 @@
+# compare_ai_models.py
+# เปรียบเทียบการใช้ทรัพยากรของโมเดล AI ประเภทต่างๆ
+
+from resource_tracker_ai import ResourceTracker, AIWorkloadProfiler, RegionalCarbonIntensity
+import os
+import time
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+
+# กำหนดโมเดลที่ต้องการทดสอบ
+MODELS_TO_TEST = [
+    {"name": "Small LLM", "type": "llm_inference", "iterations": 3, "complexity": 500000},
+    {"name": "Large LLM", "type": "llm_inference", "iterations": 3, "complexity": 1000000},
+    {"name": "Vision Model", "type": "vision_inference", "iterations": 3, "complexity": 800000},
+    {"name": "NLP Model", "type": "nlp_inference", "iterations": 3, "complexity": 700000},
+]
+
+def simulate_model_workload(model, tracker):
+    """จำลองการทำงานของโมเดล AI ประเภทต่างๆ"""
+    complexity = model["complexity"]
+    iterations = model["iterations"]
+    model_type = model["type"]
+    model_name = model["name"]
+    
+    print(f"\nทดสอบโมเดล: {model_name} ({model_type})")
+    
+    # เริ่มติดตามโมเดลนี้
+    with tracker.track_section(f"Model_{model_name}", workload_type=model_type):
+        # จำลองการใช้หน่วยความจำ
+        data_size = complexity * 10
+        data = [0] * data_size
+        
+        # จำลองการคำนวณ
+        for i in range(iterations):
+            # การคำนวณที่ใช้ CPU สูง
+            result = 0
+            for j in range(complexity):
+                result += (j * j) % 10000
+            
+            print(f"  - รอบที่ {i+1}/{iterations} เสร็จสิ้น")
+            time.sleep(1)
+
+def main():
+    # สร้างโฟลเดอร์สำหรับเก็บผลลัพธ์
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = f"ai_model_comparison_{timestamp}"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    print("=== เปรียบเทียบการใช้ทรัพยากรของโมเดล AI ===")
+    
+    # สร้าง Resource Tracker
+    tracker = ResourceTracker(
+        interval_sec=0.5,
+        region='global',
+        gpu_enabled=True,
+        track_network=True,
+        track_processes=True,
+        output_dir=output_dir
+    )
+    
+    # บันทึกข้อมูลระบบ
+    system_info = tracker.record_system_info()
+    print(f"\nข้อมูลระบบ:")
+    print(f"  - OS: {system_info['system']} {system_info['machine']}")
+    print(f"  - CPU: {system_info['logical_cpu_count']} cores")
+    print(f"  - RAM: {system_info['total_ram_gb']:.1f} GB")
+    
+    # เริ่มการติดตาม
+    print("\nเริ่มการทดสอบเปรียบเทียบโมเดล...")
+    tracker.start()
+    
+    # ทดสอบแต่ละโมเดล
+    for model in MODELS_TO_TEST:
+        simulate_model_workload(model, tracker)
+    
+    # หยุดการติดตาม
+    tracker.stop()
+    
+    # สร้างรายงานสรุปตามส่วน
+    section_summary = tracker.summarize_sections()
+    print("\nสรุปการใช้ทรัพยากรตามโมเดล:")
+    print(section_summary.to_string())
+    
+    # สร้างกราฟเปรียบเทียบ
+    plt.figure(figsize=(14, 10))
+    
+    # กราฟเปรียบเทียบการใช้ CPU
+    plt.subplot(2, 2, 1)
+    sns.barplot(x=section_summary.index, y='avg_cpu', data=section_summary)
+    plt.title('CPU Usage by Model (%)')
+    plt.xticks(rotation=45)
+    
+    # กราฟเปรียบเทียบการใช้ RAM
+    plt.subplot(2, 2, 2)
+    sns.barplot(x=section_summary.index, y='avg_ram_gb', data=section_summary)
+    plt.title('RAM Usage by Model (GB)')
+    plt.xticks(rotation=45)
+    
+    # กราฟเปรียบเทียบการใช้พลังงาน
+    plt.subplot(2, 2, 3)
+    sns.barplot(x=section_summary.index, y='avg_power_watts', data=section_summary)
+    plt.title('Power Consumption by Model (Watts)')
+    plt.xticks(rotation=45)
+    
+    # กราฟเปรียบเทียบการปล่อย CO2
+    plt.subplot(2, 2, 4)
+    sns.barplot(x=section_summary.index, y='total_co2', data=section_summary)
+    plt.title('CO2 Emissions by Model (g)')
+    plt.xticks(rotation=45)
+    
+    plt.tight_layout()
+    comparison_plot = os.path.join(output_dir, "model_comparison.png")
+    plt.savefig(comparison_plot, dpi=300)
+    
+    # สร้างรายงานสรุป
+    report_file = os.path.join(output_dir, "comparison_report.csv")
+    section_summary.to_csv(report_file)
+    
+    # สร้างกราฟการใช้ทรัพยากรตลอดเวลา
+    tracker.plot_metrics(os.path.join(output_dir, "resource_timeline.png"))
+    
+    print(f"\nเสร็จสิ้นการทดสอบเปรียบเทียบโมเดล")
+    print(f"บันทึกผลลัพธ์ไปยัง {output_dir}/")
+    print(f"  - รายงานเปรียบเทียบ: {report_file}")
+    print(f"  - กราฟเปรียบเทียบ: {comparison_plot}")
+    
+    # แสดงการเปรียบเทียบโมเดลในรูปแบบตาราง
+    comparison_table = section_summary[['duration_sec', 'avg_cpu', 'avg_ram_gb', 'avg_power_watts', 'total_co2']].copy()
+    comparison_table.columns = ['เวลา (วินาที)', 'CPU เฉลี่ย (%)', 'RAM เฉลี่ย (GB)', 'พลังงาน (W)', 'CO2 (กรัม)']
+    
+    print("\n=== ตารางเปรียบเทียบโมเดล ===")
+    print(comparison_table.to_string())
+    
+    # คำนวณพลังงานและคาร์บอนต่อหน่วยงาน
+    print("\n=== ประสิทธิภาพพลังงานและคาร์บอน ===")
+    for model_name in comparison_table.index:
+        duration = comparison_table.loc[model_name, 'เวลา (วินาที)']
+        energy = comparison_table.loc[model_name, 'พลังงาน (W)'] * duration / 3600 / 1000  # kWh
+        co2 = comparison_table.loc[model_name, 'CO2 (กรัม)']
+        
+        print(f"\n{model_name}:")
+        print(f"  - พลังงานต่อการทำงาน: {energy*1000:.4f} Wh")
+        print(f"  - CO2 ต่อการทำงาน: {co2:.4f} กรัม")
+        print(f"  - ประสิทธิภาพพลังงาน: {co2/energy:.2f} gCO2/kWh")
+
+if __name__ == "__main__":
+    main()
