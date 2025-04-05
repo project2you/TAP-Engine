@@ -1,0 +1,26 @@
+# Core dependencies
+torch>=1.12.0
+numpy>=1.20.0
+tqdm>=4.64.0
+colorlog>=6.7.0
+
+# Hugging Face integrations
+transformers>=4.30.0
+accelerate>=0.20.0
+datasets>=2.12.0
+
+# Quantization and optimization
+bitsandbytes>=0.39.0
+peft>=0.4.0
+
+# Optional dependencies
+triton>=2.0.0; platform_system != "Windows"  # Triton not available on Windows
+matplotlib>=3.7.0  # For visualization tools
+psutil>=5.9.0  # For memory tracking
+typer>=0.7.0  # For CLI interface
+rich>=13.4.0  # For enhanced CLI output
+
+# Documentation and development
+pytest>=7.3.1
+sphinx>=6.2.0
+black>=23.3.0
